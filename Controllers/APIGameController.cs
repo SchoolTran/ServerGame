@@ -13,6 +13,8 @@ using ServerGame.DTO;
 using ServerGame.ViewModel;
 using ServerGame.Service;
 using static ServerGame.ViewModel.RatingVM;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
 
 namespace ServerGame.Controllers
 {
@@ -40,7 +42,7 @@ namespace ServerGame.Controllers
             _configuration = configuration;
         }
 
-        // GetAllGameLevel
+        // Get All Game Level
         [HttpGet("GetAllGameLevel")]
         public async Task<IActionResult> GetAllGameLevel()
         {
@@ -61,7 +63,7 @@ namespace ServerGame.Controllers
             }
         }
 
-        // GetAllQuestionGame
+        // Get All Question Game
         [HttpGet("GetAllQuestionGame")]
         public async Task<IActionResult> GetAllQuestionGame()
         {
@@ -82,7 +84,7 @@ namespace ServerGame.Controllers
             }
         }
 
-        // GetAllRegion
+        // Get All Region
         [HttpGet("GetAllRegion")]
         public async Task<IActionResult> GetAllRegion()
         {
@@ -151,12 +153,17 @@ namespace ServerGame.Controllers
                 var email = loginRequest.Email;
                 var password = loginRequest.Password;
                 var user = await _userManager.FindByNameAsync(email);
-
                 if (user != null && await _userManager.CheckPasswordAsync(user, password))
                 {
+                    var token = GenerateJwtToken(user);
+                    var data = new
+                    {
+                        token = token,
+                        user = user
+                    };
                     _response.IsSuccess = true;
                     _response.Notification = "Đăng nhập thành công";
-                    _response.Data = user;
+                    _response.Data = data;
                     return Ok(_response);
                 }
                 else
@@ -177,7 +184,7 @@ namespace ServerGame.Controllers
             }
         }
 
-        // GetAllQuestionGameByLevel
+        // Get All Question Game By Level
         [HttpGet("GetAllQuestionGameByLevel/{levelId}")]
         public async Task<IActionResult> GetAllQuestionGameByLevel(int levelId)
         {
@@ -560,6 +567,48 @@ namespace ServerGame.Controllers
                     _response.Data = null;
                     return BadRequest(_response);
                 }
+            }
+            catch (Exception ex)
+            {
+                _response.IsSuccess = false;
+                _response.Notification = "Lỗi";
+                _response.Data = ex.Message;
+                return BadRequest(_response);
+            }
+        }
+
+        private string GenerateJwtToken(ApplicationUser user)
+        {
+            var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
+            var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
+            var claims = new[]
+            {
+                new Claim(JwtRegisteredClaimNames.Sub, user.UserName),
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+                new Claim(ClaimTypes.NameIdentifier, user.Id)
+            };
+            var token = new JwtSecurityToken(
+            issuer: _configuration["Jwt:Issuer"],
+            audience: _configuration["Jwt:Audience"],
+            claims: claims,
+            expires: DateTime.Now.AddMinutes(30),
+            signingCredentials: credentials
+            );
+            return new JwtSecurityTokenHandler().WriteToken(token);
+        }
+
+        // Get All Result By User
+        [HttpGet("GetAllResultByUser/{userId}")]
+        [Authorize]
+        public async Task<IActionResult> GetAllResultByUser(string userId)
+        {
+            try
+            {
+                var result = await _db.LevelResults.Where(x => x.UserId == userId).ToListAsync();
+                _response.IsSuccess = true;
+                _response.Notification = "Lấy dữ liệu thành công";
+                _response.Data = result;
+                return Ok(_response);
             }
             catch (Exception ex)
             {
