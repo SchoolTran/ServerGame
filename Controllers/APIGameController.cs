@@ -158,8 +158,8 @@ namespace ServerGame.Controllers
                     var token = GenerateJwtToken(user);
                     var data = new
                     {
-                        token = token,
-                        user = user
+                        token,
+                        user
                     };
                     _response.IsSuccess = true;
                     _response.Notification = "Đăng nhập thành công";
